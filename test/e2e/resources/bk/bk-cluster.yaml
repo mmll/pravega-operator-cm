@@ -1,0 +1,14 @@
+apiVersion: "bookkeeper.pravega.io/v1alpha1"
+kind: "BookkeeperCluster"
+metadata:
+  name: "bookkeeper"
+spec:
+  zookeeperUri: zookeeper-client:2181
+  envVars: bookkeeper-configmap
+  image:
+    imageSpec:
+      repository: pravega/bookkeeper
+      pullPolicy: IfNotPresent
+  replicas: 3
+  autoRecovery: true
+  version: 0.8.0

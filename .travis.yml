@@ -1,0 +1,138 @@
+sudo: required
+
+language: go
+go_import_path: github.com/pravega/pravega-operator
+go:
+  - '1.13.8'
+
+env:
+  global:
+    - secure: "X4zdixrmuh/D4WwJ6btu0fJROq7fTPO5n4/jeyoxTQvrpwikycwf3ZpXS94u43rHx1ovc8vweVIc4Kur7MFAJDmFpPz5adjD7cCjqaRHo+Sw4a/gdNKizFEmZEBFlelynJ+cYekfF3rIFRws+u/8yWUQnSPl4495Qq1NKjrDTqoB6ZrQDxYdIPPpLAit+Aj9a2zQ4xPHyOv02SmfgL22wQhOx8SF78VNmqVah6klC8j3tAemHJQSBmUQ2fPVBpqAy3YsI7mpF9aSdBOzr7Dk1/cajOx4M5WrAxDPZ7+fSKD97SjICKqtM6MuX63O6Tg86zzdoEdvTWvwBwjWpbI3iCytJOCD8vT1QBPd9bLwZI7K5dElrW990HGrBBS4GmKTFykEE6PCNvxDHu1pG4N0vmLhZ3Hh4evZxA8xSnHRyYTLOaDkSe/vurlmsRJiW0GOEa6Fyz+xrD5y4l5MDkPVvaEPzWFZQf8v+l3OvvDvmHmqup4ADXE/XBYbVraTn8wPcQnvk5ueCvJWBOd/E4keGFsGbqDxQpvQRG/8aHWv32lj2HHK6/qbihXvTfJfRbrWli2BV0LMBL/OBIiuL1JeXycYZG3AtbnwgJVXPzs8kpwrmxkRYvbb3Kc9HXu9x+ajeWDYb978Rq6/0DfXhKFIiLrgUOxR2SK6eHDTcfUY+us="
+
+stages:
+  - check
+  - unit
+  - e2e
+  - deploy
+
+jobs:
+  include:
+    - stage: check
+      name: Gofmt and License checks
+      script:
+        - make check
+
+    - stage: unit
+      name: Unit tests
+      script:
+        - make test-unit
+      after_success:
+      - bash <(curl -s https://codecov.io/bash)
+
+    - stage: e2e
+      name: End-to-end tests
+      if: type = pull_request OR branch = master OR tag IS present
+      services:
+        - docker
+      env:
+        - KUBECTL_VERSION=v1.15.0
+        - OPERATOR_SDK_VERSION=v0.17.0
+        - CLUSTER_NAME="pravega-operator-travis-$(date +'%Y%m%d%H%M%S')"
+      script:
+        # ping stdout every 5 minutes or Travis kills build
+        # ref: https://docs.travis-ci.com/user/common-build-problems/#build-times-out-because-no-output-was-received
+        - while sleep 5m; do echo hello; done &
+        - cd .. && tar -czvf pravega-operator.tar.gz pravega-operator
+        - curl -Lo packet-cli  https://github.com/packethost/packet-cli/releases/download/0.0.7/packet-linux-amd64 && chmod +x packet-cli && sudo mv packet-cli /usr/local/bin/
+        - ssh-keygen -f ~/.ssh/id_rsa -P ""
+        - pub_key=`cat ~/.ssh/id_rsa.pub`
+        - echo " publc key is $pub_key"
+        - echo "packet-cli ssh-key create --key  \"$(cat ~/.ssh/id_rsa.pub)\"  --label \"pravega\""
+        - packet-cli ssh-key create --key  "$(cat ~/.ssh/id_rsa.pub)"  --label "pravega-travis"
+        - packet-cli device create  -H  $CLUSTER_NAME"-master"  -o "ubuntu_20_04" -P c1.small.x86 -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 -f nrt1
+        - packet-cli device get -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 | grep $CLUSTER_NAME"-master" | awk '{print $2}'
+        - CLUSTER_ID=`packet-cli device get -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 | grep $CLUSTER_NAME"-master" | awk '{print $2}' | tr -d ' '`
+        - echo "cluster id is $CLUSTER_ID"
+        - packet-cli device create  -H  $CLUSTER_NAME"-worker1"  -o "ubuntu_20_04" -P c1.small.x86 -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 -f nrt1
+        - packet-cli device create  -H  $CLUSTER_NAME"-worker2"  -o "ubuntu_20_04" -P c1.small.x86 -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 -f nrt1
+        - MASTER_STATE=`packet-cli device get -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 | grep $CLUSTER_NAME"-master" | awk '{print $10}' | tr -d ' '`
+        - while [ "$MASTER_STATE" != "active" ]; do MASTER_STATE=`packet-cli device get -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 | grep $CLUSTER_NAME"-master" | awk '{print $10}' | tr -d ' '`;sleep 30;done
+        - WORKER1_STATE=`packet-cli device get -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 | grep $CLUSTER_NAME"-worker1" | awk '{print $10}' | tr -d ' '`
+        - while [ "$WORKER1_STATE" != "active" ]; do WORKER1_STATE=`packet-cli device get -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 | grep $CLUSTER_NAME"-worker1" | awk '{print $10}' | tr -d ' '`;sleep 30;done
+        - WORKER2_STATE=`packet-cli device get -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 | grep $CLUSTER_NAME"-worker2" | awk '{print $10}' | tr -d ' '`
+        - while [ "$WORKER2_STATE" != "active" ]; do WORKER2_STATE=`packet-cli device get -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 | grep $CLUSTER_NAME"-worker2" | awk '{print $10}' | tr -d ' '`;sleep 30;done
+        - CLUSTER_IP=`packet-cli device get -i $CLUSTER_ID -y | grep "\- address:" | head -1 |awk '{print $3}' | tr -d ' '`
+        - echo "Cluster IP is $CLUSTER_IP"
+        - scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -r pravega-operator.tar.gz  root@$CLUSTER_IP:/root/
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "sudo apt-get update; tar -xzvf /root/pravega-operator.tar.gz"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP /root/pravega-operator/test/e2e/resources/kubernetes_master_install.sh
+        - CLUSTER_ID1=`packet-cli device get -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 | grep $CLUSTER_NAME"-worker1" | awk '{print $2}' | tr -d ' '`
+        - CLUSTER_IP1=`packet-cli device get -i $CLUSTER_ID1 -y | grep "\- address:" | head -1 |awk '{print $3}' | tr -d ' '`
+        - CLUSTER_ID2=`packet-cli device get -p 454b8b42-33d3-4e7e-8acf-1d1a5fec7e85 | grep $CLUSTER_NAME"-worker2" | awk '{print $2}' | tr -d ' '`
+        - CLUSTER_IP2=`packet-cli device get -i $CLUSTER_ID2 -y | grep "\- address:" | head -1 |awk '{print $3}' | tr -d ' '`
+        - scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -r pravega-operator.tar.gz  root@$CLUSTER_IP1:/root/
+        - scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -r pravega-operator.tar.gz  root@$CLUSTER_IP2:/root/
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP1 "sudo apt-get update; tar -xzvf /root/pravega-operator.tar.gz"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP2 "sudo apt-get update; tar -xzvf /root/pravega-operator.tar.gz"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP1 /root/pravega-operator/test/e2e/resources/kubernetes_slave_install.sh
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP2 /root/pravega-operator/test/e2e/resources/kubernetes_slave_install.sh
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP 'kubeadm token create --print-join-command | head -2' >JOIN
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP1 $(cat JOIN)
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP2 $(cat JOIN)
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "kubectl get nodes"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "mkdir /data;kubectl create -f /root/pravega-operator/test/e2e/resources/local-storage.yaml"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "curl -L https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "helm repo add stable https://charts.helm.sh/stable;helm install stable/nfs-server-provisioner --generate-name;kubectl -n default create -f /root/pravega-operator/test/e2e/resources/tier2.yaml"
+
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "kubectl create -f /root/pravega-operator/test/e2e/resources/zookeeper.yaml"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP  "kubectl -n default create -f /root/pravega-operator/test/e2e/resources/bookkeeper.yaml"
+        - sleep 30s
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP  "kubectl -n default create -f /root/pravega-operator/test/e2e/resources/bk-version-map.yaml"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP  "kubectl -n default create -f /root/pravega-operator/test/e2e/resources/bk-config-map.yaml"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP  "kubectl -n default create -f /root/pravega-operator/test/e2e/resources/bk-cluster.yaml"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP  "kubectl -n default create -f /root/pravega-operator/deploy/version_map.yaml"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP  "kubectl apply -f \"https://github.com/jetstack/cert-manager/releases/download/v0.14.1/cert-manager.crds.yaml\""
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP  "helm repo add jetstack https://charts.jetstack.io"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP  "helm repo update"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "kubectl create namespace cert-manager;helm install cert-manager jetstack/cert-manager --namespace cert-manager --version v0.14.1 --wait"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "kubectl create -f /root/pravega-operator/deploy/certificate.yaml"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "kubectl create -f /root/pravega-operator/deploy/webhook.yaml"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "kubectl create -f /root/pravega-operator/deploy/crds/crd.yaml"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "kubectl create -f /root/pravega-operator/test/e2e/resources/external_access/"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "cd /root/pravega-operator/test/e2e/resources/key_tls/"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "kubectl create secret generic controller-tls \
+        --from-file=./controller01.pem \
+        --from-file=./ca-cert \
+        --from-file=./controller01.key.pem \
+        --from-file=./controller01.jks \
+        --from-file=./pass-secret-tls"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "kubectl create secret generic segmentstore-tls \
+        --from-file=./segmentstore01.pem \
+        --from-file=./ca-cert \
+        --from-file=./segmentstore01.key.pem"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "kubectl create secret generic password-auth --from-file=pass-secret-tls-auth.txt"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "curl -Lo operator-sdk https://github.com/operator-framework/operator-sdk/releases/download/$OPERATOR_SDK_VERSION/operator-sdk-$OPERATOR_SDK_VERSION-x86_64-linux-gnu && chmod +x operator-sdk && sudo mv operator-sdk /usr/local/bin/"
+        # Show Pravega dependencies
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer);source /root/.gvm/scripts/gvm;gvm install go1.13.8 --binary;gvm use go1.13.8 --default"
+        - ssh -o StrictHostKeyChecking=no root@$CLUSTER_IP "cd /root/pravega-operator;source /root/.gvm/scripts/gvm;make test-e2e"
+        # kill background echo loop
+        - echo "killing while sleep loop" && kill %1
+      after_script:
+        - SSHKEY=`packet-cli ssh-key get | grep "pravega-travis" | awk '{print $2}' | tr -d ' '`
+        - echo y | packet-cli ssh-key delete -i $SSHKEY
+        - echo y | packet-cli device  delete -i $CLUSTER_ID
+        - echo y | packet-cli device  delete -i $CLUSTER_ID1
+        - echo y | packet-cli device  delete -i $CLUSTER_ID2
+
+    - stage: deploy
+      name: Push Docker image
+      if: type != pull_request AND tag IS present
+      services:
+        - docker
+      script:
+        - make push
+
+notifications:
+  slack:
+    rooms:
+      secure: Gv0RJx1Sa/y5fmvLNwY+2ivfWZYCM0ekrr6UAHqsegnid6P/DFZrSrfSpwvcVh2OVNH8DHLV0BoiuDJ7amtl1eMDMXz5/lLz8tFWFKaHv4yDSadm8ILY/KnYUoP4IRuM3NyKQmBrmZB9Or5KFXboG6ex6UkgbuYy0Zyl6syEe168Iw8hlCRx26Jei7/y+8eE2MIGFh09TLRZ/944YbULum9H3KQLYv8nFdPc7GmR5AK461fnwZ7iYjb7MXkCctE5Vml3p9+2Qliv1ZJqNsQeKmSFW6IhiP6pNZ1V8VJEWMQmX/nBr9745l/N+CoLQz9ajLonlxn9xHdWms4TEu1ynFk6uxEJjlcpXcvcEaKhqAKcTMl0GMMRab2m+/Vt3S/VutJnVXQmnhZGT9glLFQHwcdHNqM/LEbXtyisB7zmGImUQpF2InCwO25IXug5gv64IfOHGMzL56yNIhbRgBY9Ud4Tux+pmkV5ZxJiBkul7/FiHQX7tQLUrzQosD0oyCOmaWD7kmbt15A0TOkLgup4HE+sSS1ASwisa7J2+HsbI3Upy3rNVKuIJP0L4KSTn4HSlDlMLLcWM+nz/YCEfuwSRXJTIstotNYHdsLUZAZSYAX7ejpeiuBRed4a4AlCROeKbKKwCcSvqCOjmCaPTpwJAGeJByOXLL2hfQzpDMKCIKM=
