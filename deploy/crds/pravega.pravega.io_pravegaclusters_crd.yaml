@@ -2223,6 +2223,17 @@ spec:
                           prefix:
                             type: string
                         type: object
+                      chunk:
+                        description: Ecs is used to configure a Dell EMC ECS system
+                          as a Tier 2 backend
+                        properties:
+                          bucket:
+                            type: string
+                          configUri:
+                            type: string
+                          prefix:
+                            type: string
+                        type: object
                       filesystem:
                         description: FileSystem is used to configure a pre-created
                           Persistent Volume Claim as Tier 2 backend. It is default
@@ -5156,6 +5167,17 @@ spec:
                           configUri:
                             type: string
                           credentials:
+                            type: string
+                          prefix:
+                            type: string
+                        type: object
+                      chunk:
+                        description: Ecs is used to configure a Dell EMC ECS system
+                          as a Tier 2 backend
+                        properties:
+                          bucket:
+                            type: string
+                          configUri:
                             type: string
                           prefix:
                             type: string

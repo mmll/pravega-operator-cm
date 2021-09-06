@@ -388,7 +388,15 @@ func (dst *PravegaCluster) convertSpec(srcObj *v1alpha1.PravegaCluster) error {
 				ReplicationFactor: srcObj.Spec.Pravega.Tier2.Hdfs.ReplicationFactor,
 			},
 		}
-	}
+	}else if srcObj.Spec.Pravega.Tier2.Chunk != nil {
+         dst.Spec.Pravega.LongTermStorage = &LongTermStorageSpec{
+          	Chunk: &CHUNKSpec{
+          		ConfigUri:           srcObj.Spec.Pravega.Tier2.Chunk.ConfigUri,
+          		Bucket:              srcObj.Spec.Pravega.Tier2.Chunk.Bucket,
+          		Prefix: srcObj.Spec.Pravega.Tier2.Chunk.Prefix,
+          	},
+          }
+    }
 
 	// Controller Resources
 	if srcObj.Spec.Pravega.ControllerResources != nil {

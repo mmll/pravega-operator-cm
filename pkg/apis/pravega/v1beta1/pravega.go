@@ -451,6 +451,8 @@ type LongTermStorageSpec struct {
 	// It is default Tier 2 mode.
 	FileSystem *FileSystemSpec `json:"filesystem,omitempty"`
 
+	Chunk *CHUNKSpec `json:"ecs,omitempty"`
+
 	// Ecs is used to configure a Dell EMC ECS system as a Tier 2 backend
 	Ecs *ECSSpec `json:"ecs,omitempty"`
 
@@ -471,7 +473,7 @@ type AuthHandlerSpec struct {
 }
 
 func (s *LongTermStorageSpec) withDefaults() (changed bool) {
-	if s.FileSystem == nil && s.Ecs == nil && s.Hdfs == nil {
+	if s.FileSystem == nil && s.Ecs == nil && s.Hdfs == nil && s.Chunk == nil{
 		changed = true
 		fs := &FileSystemSpec{
 			PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
@@ -500,6 +502,16 @@ type ECSSpec struct {
 	Prefix string `json:"prefix"`
 	// +optional
 	Credentials string `json:"credentials"`
+}
+
+type CHUNKSpec struct {
+	// +optional
+	ConfigUri string `json:"configUri"`
+	// +optional
+	Bucket string `json:"bucket"`
+	// +optional
+	Prefix string `json:"prefix"`
+	// +optional
 }
 
 // HDFSSpec contains the connection details to an HDFS system

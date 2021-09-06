@@ -281,6 +281,8 @@ type Tier2Spec struct {
 	// Ecs is used to configure a Dell EMC ECS system as a Tier 2 backend
 	Ecs *ECSSpec `json:"ecs,omitempty"`
 
+	Chunk *CHUNKSpec `json:"ecs,omitempty"`
+
 	// Hdfs is used to configure an HDFS system as a Tier 2 backend
 	Hdfs *HDFSSpec `json:"hdfs,omitempty"`
 }
@@ -315,6 +317,15 @@ type ECSSpec struct {
 	Prefix string `json:"prefix"`
 	// +optional
 	Credentials string `json:"credentials"`
+}
+
+type CHUNKSpec struct {
+	// +optional
+	ConfigUri string `json:"configUri"`
+	// +optional
+	Bucket string `json:"bucket"`
+	// +optional
+	Prefix string `json:"prefix"`
 }
 
 // HDFSSpec contains the connection details to an HDFS system
