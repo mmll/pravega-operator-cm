@@ -337,6 +337,12 @@ func makeCacheVolumeClaimTemplate(p *api.PravegaCluster) []corev1.PersistentVolu
 }
 
 func getTier2StorageOptions(pravegaSpec *api.PravegaSpec) map[string]string {
+    return map[string]string{
+    			"TIER2_STORAGE":        "ECSCHUNK",
+    			"CHUNK_CONFIGURI": "http://10.245.128.121:9939",
+    			"CHUNK_BUCKET":    "pravega-bucket",
+    			"CHUNK_PREFIX":    "pravega-tier2",
+    	       }
 	if pravegaSpec.LongTermStorage.FileSystem != nil {
 		return map[string]string{
 			"TIER2_STORAGE": "FILESYSTEM",
