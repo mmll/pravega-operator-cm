@@ -354,6 +354,15 @@ func getTier2StorageOptions(pravegaSpec *api.PravegaSpec) map[string]string {
 		}
 	}
 
+        if pravegaSpec.LongTermStorage.Chunk != nil {
+	       return map[string]string{
+			"TIER2_STORAGE":        "ECSCHUNK",
+			"CHUNK_CONFIGURI": pravegaSpec.LongTermStorage.Ecs.ConfigUri,
+			"CHUNK_BUCKET":    pravegaSpec.LongTermStorage.Ecs.Bucket,
+			"CHUNK_PREFIX":    pravegaSpec.LongTermStorage.Ecs.Prefix,
+	       }
+	}
+
 	if pravegaSpec.LongTermStorage.Hdfs != nil {
 		return map[string]string{
 			"TIER2_STORAGE": "HDFS",
