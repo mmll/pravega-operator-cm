@@ -2,7 +2,7 @@
 ## This is a YAML-formatted file.
 ## Declare variables to be passed into your templates.
 
-version: 0.9.0
+version: 0.10.0-2976.d7877a9-poc
 
 tls: {}
   # secret:
@@ -20,16 +20,16 @@ authentication:
   #controllerTokenSecret:
 
 zookeeperUri: zookeeper-client:2181
-bookkeeperUri: bookkeeper-bookie-headless:3181
+bookkeeperUri: "bookkeeper-pravega-bk-bookie-0.bookkeeper-pravega-bk-bookie-headless.default.svc.cluster.local:3181,bookkeeper-pravega-bk-bookie-1.bookkeeper-pravega-bk-bookie-headless.default.svc.cluster.local:3181,bookkeeper-pravega-bk-bookie-2.bookkeeper-pravega-bk-bookie-headless.default.svc.cluster.local:3181"
 
 externalAccess:
   enabled: false
-  ## type and domainName are ignored if external access is disabled
-  type: LoadBalancer
+
   domainName:
 
 image:
-  repository: pravega/pravega
+  repository: asdrepo.isus.emc.com:8099/pravega
+  tag: 0.10.0-2976.d7877a9-poc
   pullPolicy: IfNotPresent
 
 hooks:
@@ -108,7 +108,7 @@ storage:
     ## configure the long term storage backend type
     ## accepted values : filesystem/ecs/hdfs
     ## default option is filesystem
-    type: filesystem
+    type: chunk
 
     ## fileSystem is used to configure a pre-created Persistent Volume Claim
     ## as the long term storage backend
@@ -119,9 +119,10 @@ storage:
     ## ecs is used to configure a Dell EMC ECS system as the long term storage backend
     ## considered only if storage.longtermStorage.type = ecs
     ecs: {}
-      # configUri: https://object.ecstestdrive.com?namespace=namespace%26identity=user%26secretKey=password
-      # bucket: "bucket"
-      # prefix: "prefix"
+    chunk:
+      configUri: http://10.245.128.121:9939
+      bucket: pravega-bucket
+      prefix: pravega-tier2
       # credentials: ecs-credentials
 
     ## hdfs is used to configure an HDFS system as long term storage backend

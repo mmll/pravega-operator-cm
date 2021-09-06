@@ -175,6 +175,11 @@ spec:
         bucket: {{ .Values.storage.longtermStorage.ecs.bucket }}
         prefix: {{ .Values.storage.longtermStorage.ecs.prefix }}
         credentials: {{ .Values.storage.longtermStorage.ecs.credentials }}
+      {{- else if eq $longTermStorageType "chunk"}}
+      chunk:
+        configUri: {{ .Values.storage.longtermStorage.chunk.configUri }}
+        bucket: {{ .Values.storage.longtermStorage.chunk.bucket }}
+        prefix: {{ .Values.storage.longtermStorage.chunk.prefix }}
       {{- else if eq $longTermStorageType "hdfs"}}
       hdfs:
         uri: {{ .Values.storage.longtermStorage.hdfs.uri }}
